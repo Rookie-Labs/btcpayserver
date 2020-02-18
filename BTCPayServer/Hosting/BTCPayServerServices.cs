@@ -47,6 +47,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using BTCPayServer.Hosting.OpenApi;
 using BTCPayServer.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -265,6 +266,7 @@ namespace BTCPayServer.Hosting
             var rateLimits = new RateLimitService();
             rateLimits.SetZone($"zone={ZoneLimits.Login} rate=5r/min burst=3 nodelay");
             services.AddSingleton(rateLimits);
+            services.AddBTCPayOpenApi();
 
 
             services.AddLogging(logBuilder =>
@@ -294,6 +296,7 @@ namespace BTCPayServer.Hosting
         public static IApplicationBuilder UsePayServer(this IApplicationBuilder app)
         {
             app.UseMiddleware<BTCPayMiddleware>();
+            app.UseBTCPayOpenApi();
             return app; 
         }
         public static IApplicationBuilder UseHeadersOverride(this IApplicationBuilder app)
