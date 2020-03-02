@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using OpenIddict.EntityFrameworkCore.Models;
 
 namespace BTCPayServer.Data
 {
@@ -160,6 +159,12 @@ namespace BTCPayServer.Data
                    .HasOne(o => o.StoreData)
                    .WithMany(i => i.APIKeys)
                    .HasForeignKey(i => i.StoreId).OnDelete(DeleteBehavior.Cascade);
+            
+            builder.Entity<APIKeyData>()
+                .HasOne(o => o.User)
+                .WithMany(i => i.APIKeys)
+                .HasForeignKey(i => i.UserId).OnDelete(DeleteBehavior.Cascade);
+            
             builder.Entity<APIKeyData>()
                 .HasIndex(o => o.StoreId);
 
@@ -255,28 +260,6 @@ namespace BTCPayServer.Data
                 .HasOne(o => o.WalletData)
                 .WithMany(w => w.WalletTransactions).OnDelete(DeleteBehavior.Cascade);
 
-            builder.UseOpenIddict<BTCPayOpenIdClient, BTCPayOpenIdAuthorization, OpenIddictScope<string>, BTCPayOpenIdToken, string>();
-
-            if (Database.IsSqlite() && !_designTime)
-            {
-                // SQLite does not have proper support for DateTimeOffset via Entity Framework Core, see the limitations
-                // here: https://docs.microsoft.com/en-us/ef/core/providers/sqlite/limitations#query-limitations
-                // To work around this, when the Sqlite database provider is used, all model properties of type DateTimeOffset
-                // use the DateTimeOffsetToBinaryConverter
-                // Based on: https://github.com/aspnet/EntityFrameworkCore/issues/10784#issuecomment-415769754
-                // This only supports millisecond precision, but should be sufficient for most use cases.
-                foreach (var entityType in builder.Model.GetEntityTypes())
-                {
-                    var properties = entityType.ClrType.GetProperties().Where(p => p.PropertyType == typeof(DateTimeOffset));
-                    foreach (var property in properties)
-                    {
-                        builder
-                            .Entity(entityType.Name)
-                            .Property(property.Name)
-                            .HasConversion(new Microsoft.EntityFrameworkCore.Storage.ValueConversion.DateTimeOffsetToBinaryConverter());
-                    }
-                }
-            }
         }
     }
 

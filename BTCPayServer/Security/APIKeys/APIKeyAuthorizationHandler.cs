@@ -1,50 +1,50 @@
-﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using BTCPayServer.Data;
 using BTCPayServer.Services.Stores;
-using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.Primitives;
-using static BTCPayServer.Security.OpenId.RestAPIPolicies;
-using OpenIddict.Abstractions;
-using BTCPayServer.Security.OpenId;
 
-namespace BTCPayServer.Security
+namespace BTCPayServer.Security.APIKeys
 {
-    public class OpenIdAuthorizationHandler : AuthorizationHandler<PolicyRequirement>
+    public class APIKeyAuthorizationHandler : AuthorizationHandler<PolicyRequirement>
+
     {
         private readonly HttpContext _HttpContext;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly StoreRepository _storeRepository;
 
-        public OpenIdAuthorizationHandler(IHttpContextAccessor httpContextAccessor,
-                                UserManager<ApplicationUser> userManager,
-                                StoreRepository storeRepository)
+        public APIKeyAuthorizationHandler(IHttpContextAccessor httpContextAccessor,
+            UserManager<ApplicationUser> userManager,
+            StoreRepository storeRepository)
         {
             _HttpContext = httpContextAccessor.HttpContext;
             _userManager = userManager;
             _storeRepository = storeRepository;
         }
-        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PolicyRequirement requirement)
+
+        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context,
+            PolicyRequirement requirement)
         {
-            if (context.User.Identity.AuthenticationType != "AuthenticationTypes.Federation")
+            if (context.User.Identity.AuthenticationType != APIKeyConstants.AuthenticationType)
                 return;
 
             bool success = false;
             switch (requirement.Policy)
             {
+                case Policies.CanListStoreSettings.Key:
+                    var selectiveStorePermissions =
+                        APIKeyConstants.Permissions.ExtractStorePermissionsIds(context.GetPermissions());
+                    success = context.HasPermissions(APIKeyConstants.Permissions.StoreManagement) ||
+                              selectiveStorePermissions.Any();
+                    break;
                 case Policies.CanModifyStoreSettings.Key:
-                    if (!context.HasScopes(BTCPayScopes.StoreManagement))
-                        break;
-                    // TODO: It should be possible to grant permission to a specific store
-                    // we can do this by adding saving a claim with the specific store id
-                    // to the access_token
                     string storeId = _HttpContext.GetImplicitStoreId();
+                    if (!context.HasPermissions(APIKeyConstants.Permissions.StoreManagement) &&
+                        !context.HasPermissions(APIKeyConstants.Permissions.GetStorePermission(storeId)))
+                        break;
+
                     if (storeId == null)
                     {
                         success = true;
@@ -60,9 +60,10 @@ namespace BTCPayServer.Security
                         success = true;
                         _HttpContext.SetStoreData(store);
                     }
+
                     break;
                 case Policies.CanModifyServerSettings.Key:
-                    if (!context.HasScopes(BTCPayScopes.ServerManagement))
+                    if (!context.HasPermissions(APIKeyConstants.Permissions.ServerManagement))
                         break;
                     // For this authorization, we stil check in database because it is super sensitive.
                     var user = await _userManager.GetUserAsync(context.User);
